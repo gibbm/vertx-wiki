@@ -3,6 +3,7 @@
 build/
 bin/
 .settings
+*.iml
 
 # Ignore VertX file cache
 .vertx/
