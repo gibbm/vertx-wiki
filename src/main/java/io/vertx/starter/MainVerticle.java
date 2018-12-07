@@ -3,6 +3,7 @@ package io.vertx.starter;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -24,6 +25,11 @@ public class MainVerticle extends AbstractVerticle {
   private static final String SQL_SAVE_PAGE = "update Pages set Content = ? where Id = ?";
   private static final String SQL_ALL_PAGES = "select Name from Pages";
   private static final String SQL_DELETE_PAGE = "delete from Pages where Id = ?";
+  private static final String EMPTY_PAGE_MARKDOWN =
+    "# A new page\n" +
+      "\n" +
+      "Feel-free to write in Markdown!\n";
+
   private static final Logger LOGGER = LoggerFactory.getLogger(MainVerticle.class);
 
   private final FreeMarkerTemplateEngine templateEngine = FreeMarkerTemplateEngine.create();
@@ -73,6 +79,7 @@ public class MainVerticle extends AbstractVerticle {
 
     Router router = Router.router(vertx);
     router.get("/").handler(this::indexHandler);
+    router.get("/wiki/:page").handler(this::renderingPageHandler);
     router.post().handler(BodyHandler.create());
     router.post("/save").handler(this::pageUpdateHandler);
     router.post("/create").handler(this::pageCreateHandler);
@@ -124,6 +131,35 @@ public class MainVerticle extends AbstractVerticle {
         });
       } else {
         context.fail(event.cause());
+      }
+    });
+  }
+
+  private void renderingPageHandler(RoutingContext context) {
+    String page = context.request().getParam("page");
+
+    dbClient.getConnection(con -> {
+      if (con.succeeded()) {
+        SQLConnection connection = con.result();
+        connection.queryWithParams(SQL_CREATE_PAGE, new JsonArray().add(page), fetch -> {
+          connection.close();
+
+          if (fetch.succeeded()) {
+            JsonArray row = fetch.result().getResults()
+              .stream()
+              .findFirst()
+              .orElseGet(() -> new JsonArray().add(-1).add(EMPTY_PAGE_MARKDOWN));
+            Integer id = row.getInteger(0);
+            String rawContent = row.getString(1);
+
+
+
+          } else {
+            context.fail(fetch.cause());
+          }
+        });
+      } else {
+        context.fail(con.cause());
       }
     });
   }
